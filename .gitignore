@@ -1,0 +1,28 @@
+# Backend
+.gradle/
+build/
+*.jar
+*.war
+*.ear
+!.gitkeep
+
+# Frontend
+node_modules/
+dist/
+*.log
+
+# Environment
+.env
+*.env.local
+
+# IDE
+.idea/
+*.iml
+.vscode/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Slither cache
+.slither/

@@ -1,0 +1,45 @@
+version: '3.8'
+
+services:
+  # ── Nuevos servicios blockchain (se añaden al stack de guardianos-audit) ──
+  
+  guardianos-blockchain-backend:
+    build: 
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: guardianos-blockchain-backend
+    ports:
+      - "8081:8081"
+    environment:
+      DATABASE_URL: ${DATABASE_URL}
+      REDIS_URL: ${REDIS_URL}
+      ETHERSCAN_API_KEY: ${ETHERSCAN_API_KEY}
+      JWT_SECRET: ${JWT_SECRET}  # Mismo secreto que guardianos-audit
+    depends_on:
+      - guardianos-db
+      - guardianos-redis
+    networks:
+      - guardianos-network
+    restart: unless-stopped
+    # Limitar RAM para evitar afectar al backend web
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+
+  guardianos-blockchain-frontend:
+    build:
+      context: ./web-dashboard
+      dockerfile: Dockerfile
+    container_name: guardianos-blockchain-frontend
+    ports:
+      - "5174:80"
+    depends_on:
+      - guardianos-blockchain-backend
+    networks:
+      - guardianos-network
+    restart: unless-stopped
+
+networks:
+  guardianos-network:
+    external: true  # Usar la red existente de guardianos-audit
