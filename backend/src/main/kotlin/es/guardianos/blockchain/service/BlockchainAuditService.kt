@@ -5,6 +5,7 @@ import es.guardianos.blockchain.model.*
 import es.guardianos.blockchain.scanner.ContractAgeScanner
 import es.guardianos.blockchain.scanner.EtherscanAbiScanner
 import es.guardianos.blockchain.scanner.GoPlusSecurityScanner
+import es.guardianos.blockchain.scanner.LiquidityLockScanner
 import es.guardianos.blockchain.scanner.OwnershipRenounceScanner
 import es.guardianos.blockchain.scanner.RugHistoryScanner
 import kotlinx.coroutines.CoroutineScope
@@ -22,7 +23,8 @@ class BlockchainAuditService(
     private val ageScanner: ContractAgeScanner,
     private val rugScanner: RugHistoryScanner,
     private val ownershipScanner: OwnershipRenounceScanner,
-    private val etherscanAbiScanner: EtherscanAbiScanner
+    private val etherscanAbiScanner: EtherscanAbiScanner,
+    private val liquidityScanner: LiquidityLockScanner
 ) {
     private val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
 
@@ -80,9 +82,12 @@ class BlockchainAuditService(
             val ownerFindings  = ownershipScanner.scan(address, chainId)
 
             // 5. ABI analysis — mint authority + tax changeability (Etherscan, 1 sola llamada)
-            val abiFindings    = etherscanAbiScanner.scan(address, chainId)
+            val abiFindings       = etherscanAbiScanner.scan(address, chainId)
 
-            val allFindings = (goPlusFindings + ageFindings + rugFindings + ownerFindings + abiFindings)
+            // 6. Liquidez bloqueada — GoPlus lp_holders
+            val liquidityFindings = liquidityScanner.scan(address, chainId)
+
+            val allFindings = (goPlusFindings + ageFindings + rugFindings + ownerFindings + abiFindings + liquidityFindings)
                 .distinctBy { it.id }
 
             // 3. Scoring: 100 - Σ penalizaciones

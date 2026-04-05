@@ -1,8 +1,10 @@
+import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { Plus, RefreshCw, AlertTriangle, ChevronRight } from 'lucide-react'
 import { blockchainApi, type BlockchainStats } from '../services/api'
 import { cn } from '../utils/cn'
+import ChainBadge from '../components/ChainBadge'
 
 const RISK_STYLES: Record<string, string> = {
   CRITICAL: 'bg-red-900/40 text-red-400 border border-red-700/50',
@@ -57,6 +59,9 @@ function StatsBanner({ stats }: { stats: BlockchainStats }) {
 }
 
 export default function BlockchainList() {
+  const [filterChain, setFilterChain]   = useState<string>('all')
+  const [filterRisk,  setFilterRisk]    = useState<string>('all')
+
   const { data: audits, isLoading, isError, refetch, isFetching } = useQuery({
     queryKey: ['blockchain-audits'],
     queryFn: blockchainApi.listAudits,
@@ -70,6 +75,16 @@ export default function BlockchainList() {
     queryKey: ['blockchain-stats'],
     queryFn: blockchainApi.getStats,
     staleTime: 30_000,
+  })
+
+  // Opciones de filtro derivadas de los datos
+  const chains = Array.from(new Set(audits?.map(a => a.chainId) ?? []))
+  const risks  = ['CRITICAL','HIGH','MEDIUM','LOW','INFO']
+
+  const filtered = audits?.filter(a => {
+    if (filterChain !== 'all' && a.chainId !== filterChain) return false
+    if (filterRisk  !== 'all' && a.riskLevel !== filterRisk) return false
+    return true
   })
 
   return (
@@ -102,6 +117,50 @@ export default function BlockchainList() {
       {/* Stats banner */}
       {stats && stats.totalAudits > 0 && <StatsBanner stats={stats} />}
 
+      {/* Filtros */}
+      {audits && audits.length > 0 && (
+        <div className="flex flex-wrap items-center gap-2 mb-4">
+          <span className="text-xs text-cyber-text/40 mr-1">Chain:</span>
+          {['all', ...chains].map(c => (
+            <button
+              key={c}
+              onClick={() => setFilterChain(c)}
+              className={cn(
+                'px-2.5 py-1 rounded text-xs font-medium border transition-colors',
+                filterChain === c
+                  ? 'bg-cyber-accent/20 border-cyber-accent/60 text-cyber-accent'
+                  : 'border-cyber-border text-cyber-text/50 hover:text-cyber-text'
+              )}
+            >
+              {c === 'all' ? 'Todas' : c.charAt(0).toUpperCase() + c.slice(1)}
+            </button>
+          ))}
+          <span className="text-xs text-cyber-text/40 ml-3 mr-1">Riesgo:</span>
+          {['all', ...risks].map(r => (
+            <button
+              key={r}
+              onClick={() => setFilterRisk(r)}
+              className={cn(
+                'px-2.5 py-1 rounded text-xs font-medium border transition-colors',
+                filterRisk === r
+                  ? cn('border-transparent', r !== 'all' ? RISK_STYLES[r] : 'bg-cyber-accent/20 border-cyber-accent/60 text-cyber-accent')
+                  : 'border-cyber-border text-cyber-text/50 hover:text-cyber-text'
+              )}
+            >
+              {r === 'all' ? 'Todos' : r}
+            </button>
+          ))}
+          {(filterChain !== 'all' || filterRisk !== 'all') && (
+            <button
+              onClick={() => { setFilterChain('all'); setFilterRisk('all') }}
+              className="ml-auto text-xs text-cyber-text/40 hover:text-cyber-text transition-colors"
+            >
+              Limpiar filtros
+            </button>
+          )}
+        </div>
+      )}
+
       {/* States */}
       {isLoading && (
         <div className="text-center py-20 text-cyber-text/40">Cargando auditorías…</div>
@@ -128,7 +187,7 @@ export default function BlockchainList() {
       )}
 
       {/* Table */}
-      {audits && audits.length > 0 && (
+      {filtered && filtered.length > 0 && (
         <div className="rounded-xl border border-cyber-border overflow-hidden">
           <table className="w-full text-sm">
             <thead>
@@ -143,7 +202,7 @@ export default function BlockchainList() {
               </tr>
             </thead>
             <tbody>
-              {audits.map((audit) => (
+              {filtered.map((audit) => (
                 <tr
                   key={audit.id}
                   className="border-b border-cyber-border/50 hover:bg-white/2 transition-colors"
@@ -161,7 +220,9 @@ export default function BlockchainList() {
                       </div>
                     </div>
                   </td>
-                  <td className="px-4 py-3 text-cyber-text/70 capitalize">{audit.chainId}</td>
+                  <td className="px-4 py-3">
+                    <ChainBadge chainId={audit.chainId} size="sm" />
+                  </td>
                   <td className="px-4 py-3">
                     {audit.tokenName ? (
                       <span className="text-cyber-text">
@@ -209,6 +270,17 @@ export default function BlockchainList() {
               ))}
             </tbody>
           </table>
+          {filtered.length < (audits?.length ?? 0) && (
+            <div className="px-4 py-2 bg-cyber-surface/50 text-xs text-cyber-text/40 text-right">
+              Mostrando {filtered.length} de {audits?.length} auditorías
+            </div>
+          )}
+        </div>
+      )}
+
+      {filtered && filtered.length === 0 && audits && audits.length > 0 && (
+        <div className="text-center py-12 text-cyber-text/40">
+          No hay auditorías con los filtros seleccionados.
         </div>
       )}
     </div>

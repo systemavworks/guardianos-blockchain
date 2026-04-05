@@ -8,6 +8,7 @@ import es.guardianos.blockchain.routes.blockchainRoutes
 import es.guardianos.blockchain.scanner.ContractAgeScanner
 import es.guardianos.blockchain.scanner.EtherscanAbiScanner
 import es.guardianos.blockchain.scanner.GoPlusSecurityScanner
+import es.guardianos.blockchain.scanner.LiquidityLockScanner
 import es.guardianos.blockchain.scanner.OwnershipRenounceScanner
 import es.guardianos.blockchain.scanner.RugHistoryScanner
 import es.guardianos.blockchain.service.BlockchainAuditService
@@ -67,8 +68,9 @@ fun Application.module() {
     val ageScanner       = ContractAgeScanner(etherscanClient)
     val rugScanner       = RugHistoryScanner(httpClient)
     val ownershipScanner = OwnershipRenounceScanner(httpClient)
-    val etherscanAbiScanner = EtherscanAbiScanner(etherscanClient)
-    val auditService  = BlockchainAuditService(repo, goPlusScanner, ageScanner, rugScanner, ownershipScanner, etherscanAbiScanner)
+    val etherscanAbiScanner  = EtherscanAbiScanner(etherscanClient)
+    val liquidityScanner = LiquidityLockScanner(httpClient)
+    val auditService  = BlockchainAuditService(repo, goPlusScanner, ageScanner, rugScanner, ownershipScanner, etherscanAbiScanner, liquidityScanner)
 
     // ── Serialization ──────────────────────────────────────────────────────
     install(ContentNegotiation) {

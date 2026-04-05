@@ -1,8 +1,11 @@
+import { useState } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { ArrowLeft, List, Loader2, AlertCircle, CheckCircle, Copy, ExternalLink, RefreshCw, Download } from 'lucide-react'
+import { ArrowLeft, Loader2, AlertCircle, CheckCircle, Copy, ExternalLink, RefreshCw, Download, BarChart2, ShieldAlert, FileJson } from 'lucide-react'
 import { blockchainApi, type BlockchainFinding, type RiskLevel } from '../services/api'
 import { cn } from '../utils/cn'
+import ChainBadge from '../components/ChainBadge'
+import RiskDonutChart from '../components/RiskDonutChart'
 
 const RISK_LABEL: Record<string, string> = {
   CRITICAL: 'CRÍTICO',
@@ -103,6 +106,7 @@ function FindingRow({ finding }: { finding: BlockchainFinding }) {
 export default function BlockchainReport() {
   const { id } = useParams<{ id: string }>()
   const queryClient = useQueryClient()
+  const [activeTab, setActiveTab] = useState<'resumen' | 'hallazgos' | 'json'>('resumen')
 
   const { data: report, isLoading, isError } = useQuery({
     queryKey: ['blockchain-report', id],
@@ -197,6 +201,19 @@ export default function BlockchainReport() {
     ? `${EXPLORER_BASE[report.chainId]}/${report.address}`
     : null
 
+  const [jsonCopied, setJsonCopied] = useState(false)
+  function copyJson() {
+    navigator.clipboard.writeText(JSON.stringify(report, null, 2))
+    setJsonCopied(true)
+    setTimeout(() => setJsonCopied(false), 2000)
+  }
+
+  const tabs = [
+    { id: 'resumen',    label: 'Resumen',    icon: BarChart2 },
+    { id: 'hallazgos',  label: `Hallazgos (${report.findings.length})`, icon: ShieldAlert },
+    { id: 'json',       label: 'JSON',       icon: FileJson },
+  ] as const
+
   return (
     <div className="max-w-3xl mx-auto">
       {/* Header */}
@@ -223,7 +240,7 @@ export default function BlockchainReport() {
       </div>
 
       {/* Hero card */}
-      <div className="p-6 rounded-xl bg-cyber-surface border border-cyber-border mb-6">
+      <div className="p-6 rounded-xl bg-cyber-surface border border-cyber-border mb-4">
         <div className="flex items-center gap-6 flex-wrap">
           {report.overallScore != null && report.riskLevel && (
             <ScoreCircle score={report.overallScore} risk={report.riskLevel} />
@@ -255,8 +272,8 @@ export default function BlockchainReport() {
                 </a>
               )}
             </div>
-            <div className="flex items-center gap-4 mt-3 text-xs text-cyber-text/40">
-              <span className="capitalize">{report.chainId}</span>
+            <div className="flex items-center gap-4 mt-3 text-xs text-cyber-text/40 flex-wrap">
+              <ChainBadge chainId={report.chainId} size="sm" />
               {report.totalSupply && <span>{Number(report.totalSupply).toLocaleString()} supply</span>}
               {report.holderCount != null && <span>{report.holderCount.toLocaleString()} holders</span>}
               {report.completedAt && (
@@ -286,49 +303,106 @@ export default function BlockchainReport() {
         )}
       </div>
 
-
-      {/* Findings */}
-      <div className="flex items-center justify-between mb-4">
-        <h3 className="text-lg font-bold text-cyber-text">
-          Hallazgos <span className="text-cyber-text/30 font-normal text-base">({report.findings.length})</span>
-        </h3>
-        {report.findings.length > 0 && (
-          <Link
-            to={`/audit/${report.id}/findings`}
-            className="flex items-center gap-1.5 text-sm text-cyber-accent/70 hover:text-cyber-accent transition-colors"
-          >
-            <List size={15} /> Ver todos
-          </Link>
-        )}
+      {/* Tabs */}
+      <div className="flex border-b border-cyber-border mb-6">
+        {tabs.map((tab) => {
+          const Icon = tab.icon
+          return (
+            <button
+              key={tab.id}
+              onClick={() => setActiveTab(tab.id)}
+              className={cn(
+                'flex items-center gap-1.5 px-4 py-2.5 text-sm border-b-2 -mb-px transition-colors',
+                activeTab === tab.id
+                  ? 'border-cyber-accent text-cyber-accent'
+                  : 'border-transparent text-cyber-text/50 hover:text-cyber-text'
+              )}
+            >
+              <Icon size={15} />
+              {tab.label}
+            </button>
+          )
+        })}
       </div>
 
-      {report.findings.length === 0 ? (
-        <div className="text-center py-12 rounded-xl border border-cyber-border bg-cyber-surface/50">
-          <CheckCircle size={32} className="text-emerald-400 mx-auto mb-3" />
-          <p className="text-cyber-text font-medium">Sin hallazgos de seguridad</p>
-          <p className="text-cyber-text/40 text-sm mt-1">Este contrato pasó todos los controles analizados.</p>
-        </div>
-      ) : (
+      {/* Tab: Resumen */}
+      {activeTab === 'resumen' && (
         <div className="space-y-6">
-          {RISK_ORDER.map((risk) => {
-            const items = findingsByRisk[risk]
-            if (!items?.length) return null
-            return (
-              <div key={risk}>
-                <h4 className={cn('text-xs font-bold mb-3 flex items-center gap-2',
-                  RISK_STYLES[risk].split(' ')[1]
-                )}>
-                  <span className={cn('px-2 py-0.5 rounded', RISK_STYLES[risk])}>
-                    {RISK_LABEL[risk]}
-                  </span>
-                  <span className="text-cyber-text/30 font-normal">{items.length} hallazgo{items.length !== 1 ? 's' : ''}</span>
-                </h4>
-                <div className="space-y-2">
-                  {items.map((f) => <FindingRow key={f.id} finding={f} />)}
-                </div>
+          {/* Donut chart */}
+          {report.findings.length > 0 && (
+            <div className="p-5 rounded-xl bg-cyber-surface border border-cyber-border">
+              <h3 className="text-sm font-semibold text-cyber-text/70 mb-4">Distribución de hallazgos por riesgo</h3>
+              <RiskDonutChart findings={report.findings} />
+            </div>
+          )}
+
+          {/* Info grid */}
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+            {[
+              { label: 'Dirección', value: `${report.address.slice(0, 10)}…`, mono: true },
+              { label: 'Red', value: report.chainId, capitalize: true },
+              { label: 'Token', value: report.tokenSymbol || '—' },
+              { label: 'Supply total', value: report.totalSupply ? Number(report.totalSupply).toLocaleString() : '—' },
+              { label: 'Holders', value: report.holderCount != null ? report.holderCount.toLocaleString() : '—' },
+              { label: 'Total hallazgos', value: String(report.findings.length) },
+            ].map(({ label, value, mono, capitalize }) => (
+              <div key={label} className="p-3 rounded-lg bg-cyber-surface border border-cyber-border/60">
+                <p className="text-xs text-cyber-text/40 mb-1">{label}</p>
+                <p className={cn('text-sm font-medium text-cyber-text truncate', mono && 'font-mono', capitalize && 'capitalize')}>
+                  {value}
+                </p>
               </div>
-            )
-          })}
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Tab: Hallazgos */}
+      {activeTab === 'hallazgos' && (
+        <>
+          {report.findings.length === 0 ? (
+            <div className="text-center py-12 rounded-xl border border-cyber-border bg-cyber-surface/50">
+              <CheckCircle size={32} className="text-emerald-400 mx-auto mb-3" />
+              <p className="text-cyber-text font-medium">Sin hallazgos de seguridad</p>
+              <p className="text-cyber-text/40 text-sm mt-1">Este contrato pasó todos los controles analizados.</p>
+            </div>
+          ) : (
+            <div className="space-y-6">
+              {RISK_ORDER.map((risk) => {
+                const items = findingsByRisk[risk]
+                if (!items?.length) return null
+                return (
+                  <div key={risk}>
+                    <h4 className="text-xs font-bold mb-3 flex items-center gap-2">
+                      <span className={cn('px-2 py-0.5 rounded', RISK_STYLES[risk])}>
+                        {RISK_LABEL[risk]}
+                      </span>
+                      <span className="text-cyber-text/30 font-normal">{items.length} hallazgo{items.length !== 1 ? 's' : ''}</span>
+                    </h4>
+                    <div className="space-y-2">
+                      {items.map((f) => <FindingRow key={f.id} finding={f} />)}
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          )}
+        </>
+      )}
+
+      {/* Tab: JSON */}
+      {activeTab === 'json' && (
+        <div className="relative">
+          <button
+            onClick={copyJson}
+            className="absolute top-3 right-3 flex items-center gap-1.5 px-2.5 py-1 rounded bg-cyber-surface border border-cyber-border text-xs text-cyber-text/60 hover:text-cyber-text transition-colors z-10"
+          >
+            {jsonCopied ? <CheckCircle size={13} className="text-emerald-400" /> : <Copy size={13} />}
+            {jsonCopied ? 'Copiado' : 'Copiar'}
+          </button>
+          <pre className="p-5 pt-10 rounded-xl bg-cyber-surface border border-cyber-border text-xs text-cyber-text/70 font-mono overflow-auto max-h-[70vh] whitespace-pre-wrap break-all">
+            {JSON.stringify(report, null, 2)}
+          </pre>
         </div>
       )}
     </div>
