@@ -3,5 +3,6 @@ compatibility_date = "2026-04-05"
 compatibility_flags = ["nodejs_compat"]
 
 # Sirve el build de Vite como activos estáticos
-# El archivo public/_redirects se copia automáticamente a dist/ y gestiona el SPA routing
-assets = { directory = "./web-dashboard/dist" }
+# not_found_handling = "single-page-application" sirve index.html en todas las rutas 404
+# (equivalente a _redirects en Pages, pero sin bucle infinito en Workers)
+assets = { directory = "./web-dashboard/dist", not_found_handling = "single-page-application" }
