@@ -2,6 +2,21 @@ package es.guardianos.blockchain
 
 import com.auth0.jwt.JWT
 import com.auth0.jwt.algorithms.Algorithm
+import es.guardianos.blockchain.db.BlockchainRepository
+import es.guardianos.blockchain.routes.authRoutes
+import es.guardianos.blockchain.routes.blockchainRoutes
+import es.guardianos.blockchain.scanner.ContractAgeScanner
+import es.guardianos.blockchain.scanner.EtherscanAbiScanner
+import es.guardianos.blockchain.scanner.GoPlusSecurityScanner
+import es.guardianos.blockchain.scanner.OwnershipRenounceScanner
+import es.guardianos.blockchain.scanner.RugHistoryScanner
+import es.guardianos.blockchain.service.BlockchainAuditService
+import es.guardianos.blockchain.service.DatabaseFactory
+import es.guardianos.blockchain.util.EtherscanClient
+import io.ktor.client.*
+import io.ktor.client.engine.cio.*
+import io.ktor.client.plugins.contentnegotiation.*
+import io.ktor.client.plugins.*
 import io.ktor.http.*
 import io.ktor.serialization.kotlinx.json.*
 import io.ktor.server.application.*
@@ -23,8 +38,35 @@ fun main(args: Array<String>) {
 }
 
 fun Application.module() {
-    val jwtSecret = environment.config.property("auth.jwtSecret").getString()
-    val issuer    = environment.config.property("auth.issuer").getString()
+    val jwtSecret    = environment.config.property("auth.jwtSecret").getString()
+    val issuer       = environment.config.property("auth.issuer").getString()
+    val databaseUrl  = environment.config.property("database.url").getString()
+    val etherscanKey = System.getenv("ETHERSCAN_API_KEY")
+
+    // ── Base de datos ──────────────────────────────────────────────────────
+    DatabaseFactory.init(databaseUrl)
+
+    // ── HTTP client (para GoPlus y Etherscan) ─────────────────────────────
+    val httpClient = HttpClient(CIO) {
+        install(io.ktor.client.plugins.contentnegotiation.ContentNegotiation) {
+            json(Json { ignoreUnknownKeys = true; coerceInputValues = true })
+        }
+        install(HttpTimeout) {
+            requestTimeoutMillis  = 15_000
+            connectTimeoutMillis  = 5_000
+        }
+    }
+
+    // ── Servicios ─────────────────────────────────────────────────────────
+    val repo          = BlockchainRepository()
+    val goPlusScanner = GoPlusSecurityScanner(httpClient)
+    val etherscanClient = if (!etherscanKey.isNullOrBlank())
+        EtherscanClient.getInstance(etherscanKey, httpClient) else null
+    val ageScanner       = ContractAgeScanner(etherscanClient)
+    val rugScanner       = RugHistoryScanner(httpClient)
+    val ownershipScanner = OwnershipRenounceScanner(httpClient)
+    val etherscanAbiScanner = EtherscanAbiScanner(etherscanClient)
+    val auditService  = BlockchainAuditService(repo, goPlusScanner, ageScanner, rugScanner, ownershipScanner, etherscanAbiScanner)
 
     // ── Serialization ──────────────────────────────────────────────────────
     install(ContentNegotiation) {
@@ -45,16 +87,14 @@ fun Application.module() {
         allowHeader(HttpHeaders.Authorization)
         allowHeader(HttpHeaders.ContentType)
         allowCredentials = true
-        // En producción: guardianos.es y blockchain.guardianos.es
-        allowHost("guardianos.es", schemes = listOf("https"))
+        allowHost("guardianos.es",            schemes = listOf("https"))
+        allowHost("audit.guardianos.es",      schemes = listOf("https"))
         allowHost("blockchain.guardianos.es", schemes = listOf("https"))
-        // En desarrollo
-        allowHost("localhost:5173", schemes = listOf("http"))
-        allowHost("localhost:5174", schemes = listOf("http"))
+        allowHost("localhost:5173",           schemes = listOf("http"))
+        allowHost("localhost:5174",           schemes = listOf("http"))
     }
 
     // ── Auth JWT ───────────────────────────────────────────────────────────
-    // Valida el mismo JWT emitido por guardianos-audit (mismo JWT_SECRET)
     install(Authentication) {
         jwt("jwt") {
             verifier(
@@ -65,14 +105,11 @@ fun Application.module() {
             validate { credential ->
                 val tenantId = credential.payload.getClaim("tenantId").asString()
                 val blockchainEnabled = credential.payload.getClaim("blockchainEnabled").asBoolean() ?: false
-                if (tenantId != null && blockchainEnabled) {
-                    JWTPrincipal(credential.payload)
-                } else {
-                    null  // 401 si el plan no tiene blockchain habilitado
-                }
+                if (tenantId != null && blockchainEnabled) JWTPrincipal(credential.payload) else null
             }
             challenge { _, _ ->
-                call.respond(HttpStatusCode.Unauthorized, mapOf("error" to "Token inválido o plan sin acceso blockchain"))
+                call.respond(HttpStatusCode.Unauthorized,
+                    mapOf("error" to "Token inválido o plan sin acceso blockchain"))
             }
         }
     }
@@ -90,14 +127,16 @@ fun Application.module() {
 
     // ── Routing ────────────────────────────────────────────────────────────
     routing {
-        // Health check — sin auth, para Docker y Caddy
         get("/health") {
             call.respond(mapOf("status" to "ok", "service" to "guardianos-blockchain"))
         }
 
-        // Rutas protegidas — se registrarán aquí en Sprint 1
+        // SSO handoff — sin auth JWT (valida manualmente el token de guardianos-audit)
+        authRoutes(jwtSecret, issuer)
+
+        // Rutas protegidas
         authenticate("jwt") {
-            // blockchainRoutes()  ← se añade en Sprint 1
+            blockchainRoutes(auditService)
         }
     }
 

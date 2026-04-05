@@ -49,7 +49,6 @@ dependencies {
     implementation("org.jetbrains.exposed:exposed-jdbc:0.54.0")
     implementation("org.jetbrains.exposed:exposed-java-time:0.54.0")
     implementation("org.flywaydb:flyway-core:9.22.3")
-    implementation("org.flywaydb:flyway-database-postgresql:9.22.3")
     
     // Redis
     implementation("redis.clients:jedis:5.1.0")
