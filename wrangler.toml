@@ -1,0 +1,7 @@
+name = "guardianos-blockchain"
+compatibility_date = "2026-04-05"
+compatibility_flags = ["nodejs_compat"]
+
+# Sirve el build de Vite como activos estáticos
+# El archivo public/_redirects se copia automáticamente a dist/ y gestiona el SPA routing
+assets = { directory = "./web-dashboard/dist" }
