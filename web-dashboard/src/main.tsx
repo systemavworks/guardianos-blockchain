@@ -7,6 +7,7 @@ import './index.css'
 
 // SSO: Token pass desde guardianos-audit
 const AUDIT_URL = import.meta.env.VITE_AUDIT_URL ?? 'https://audit.guardianos.es'
+const API_BASE  = import.meta.env.VITE_API_URL   ?? '/api/v1'
 
 const handleHandoffToken = () => {
   const params = new URLSearchParams(window.location.search)
@@ -14,7 +15,7 @@ const handleHandoffToken = () => {
 
   if (handoff) {
     // Canjear token efímero con backend blockchain
-    fetch(`/api/v1/auth/session?handoff=${encodeURIComponent(handoff)}`)
+    fetch(`${API_BASE}/auth/session?handoff=${encodeURIComponent(handoff)}`)
       .then(res => {
         if (!res.ok) throw new Error(`HTTP ${res.status}`)
         return res.json()
