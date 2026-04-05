@@ -30,7 +30,10 @@ fun Route.authRoutes(jwtSecret: String, issuer: String) {
             val tenantId = decoded.getClaim("tenantId").asString()
                 ?: return@get call.respond(HttpStatusCode.Unauthorized, ErrorResponse("Token sin tenantId"))
 
-            val blockchainEnabled = decoded.getClaim("blockchainEnabled").asBoolean() ?: false
+            val blockchainPlans = setOf("corporativo", "sub_business", "sub_enterprise", "agencia", "revendedor")
+            val plan = decoded.getClaim("plan")?.asString() ?: ""
+            val blockchainEnabled = decoded.getClaim("blockchainEnabled")?.asBoolean()
+                ?: (plan in blockchainPlans)
             if (!blockchainEnabled) {
                 return@get call.respond(HttpStatusCode.Forbidden,
                     ErrorResponse("Tu plan no incluye acceso al módulo blockchain. Actualiza tu suscripción."))
