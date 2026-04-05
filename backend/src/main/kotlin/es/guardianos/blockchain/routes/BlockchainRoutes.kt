@@ -3,6 +3,7 @@ package es.guardianos.blockchain.routes
 import es.guardianos.blockchain.model.ErrorResponse
 import es.guardianos.blockchain.model.NewAuditRequest
 import es.guardianos.blockchain.service.BlockchainAuditService
+import es.guardianos.blockchain.service.BlockchainPdfService
 import io.ktor.http.*
 import io.ktor.server.application.*
 import io.ktor.server.auth.*
@@ -57,6 +58,32 @@ fun Route.blockchainRoutes(auditService: BlockchainAuditService) {
         val ok = auditService.reaudit(reportId, tenantId)
         if (ok) call.respond(mapOf("reportId" to reportId, "status" to "running"))
         else    call.respond(HttpStatusCode.NotFound, ErrorResponse("Reporte no encontrado"))
+    }
+
+    // ── Descargar PDF del reporte ─────────────────────────────────────────────
+    get("/api/v1/blockchain/audits/{reportId}/pdf") {
+        val tenantId = call.principal<JWTPrincipal>()!!.payload.getClaim("tenantId").asString()
+        val reportId = call.parameters["reportId"]
+            ?: return@get call.respond(HttpStatusCode.BadRequest, ErrorResponse("reportId requerido"))
+
+        val lang = (call.request.queryParameters["lang"] ?: "es")
+            .lowercase().let { if (it == "en") "en" else "es" }
+
+        val report = auditService.getReport(reportId, tenantId)
+            ?: return@get call.respond(HttpStatusCode.NotFound, ErrorResponse("Reporte no encontrado"))
+
+        if (report.status != "completed") {
+            return@get call.respond(
+                HttpStatusCode.Conflict,
+                ErrorResponse("La auditoría aún no ha finalizado (status: ${report.status})")
+            )
+        }
+
+        val pdfBytes = BlockchainPdfService.generate(report, lang)
+        val filename = "blockchain-audit-${report.address.take(10)}-$lang.pdf"
+
+        call.response.header(HttpHeaders.ContentDisposition, "attachment; filename=\"$filename\"")
+        call.respondBytes(pdfBytes, ContentType("application", "pdf"))
     }
 
     // ── Estadísticas del tenant ───────────────────────────────────────────────

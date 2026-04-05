@@ -53,6 +53,11 @@ dependencies {
     // Redis
     implementation("redis.clients:jedis:5.1.0")
     
+    // PDF — iText 8
+    implementation("com.itextpdf:kernel:8.0.4")
+    implementation("com.itextpdf:layout:8.0.4")
+    implementation("com.itextpdf:io:8.0.4")
+
     // Utils
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.8.1")
     implementation("io.github.oshai:kotlin-logging-jvm:6.0.3")
