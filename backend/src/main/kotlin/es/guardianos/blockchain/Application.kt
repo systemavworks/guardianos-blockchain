@@ -41,10 +41,12 @@ fun Application.module() {
     val jwtSecret    = environment.config.property("auth.jwtSecret").getString()
     val issuer       = environment.config.property("auth.issuer").getString()
     val databaseUrl  = environment.config.property("database.url").getString()
+    val dbUser       = environment.config.property("database.user").getString()
+    val dbPassword   = environment.config.property("database.password").getString()
     val etherscanKey = System.getenv("ETHERSCAN_API_KEY")
 
     // ── Base de datos ──────────────────────────────────────────────────────
-    DatabaseFactory.init(databaseUrl)
+    DatabaseFactory.init(databaseUrl, dbUser, dbPassword)
 
     // ── HTTP client (para GoPlus y Etherscan) ─────────────────────────────
     val httpClient = HttpClient(CIO) {

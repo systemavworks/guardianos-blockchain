@@ -9,10 +9,10 @@ import org.slf4j.LoggerFactory
 object DatabaseFactory {
     private val log = LoggerFactory.getLogger(DatabaseFactory::class.java)
 
-    fun init(databaseUrl: String) {
+    fun init(databaseUrl: String, dbUser: String, dbPassword: String) {
         // Flyway — solo gestiona el schema blockchain
         val flyway = Flyway.configure()
-            .dataSource(databaseUrl, null, null)
+            .dataSource(databaseUrl, dbUser, dbPassword)
             .schemas("blockchain")
             .defaultSchema("blockchain")
             .baselineOnMigrate(true)
@@ -25,7 +25,7 @@ object DatabaseFactory {
         log.info("Flyway blockchain: ${result.migrationsExecuted} migración(es) aplicada(s)")
 
         // Exposed — mismo DataSource
-        Database.connect(databaseUrl, driver = "org.postgresql.Driver")
+        Database.connect(databaseUrl, driver = "org.postgresql.Driver", user = dbUser, password = dbPassword)
         log.info("DatabaseFactory blockchain conectado")
     }
 
